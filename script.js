@@ -1,7 +1,9 @@
 // Data structure for answers
 let answers = [];
+let categories = []; // List of all categories (including empty ones)
 let currentEditingId = null;
 let selectedCategory = 'all';
+let pendingDeleteId = null; // ID of answer pending deletion
 
 // DOM Elements
 const answersList = document.getElementById('answersList');
@@ -30,10 +32,20 @@ const categoryForm = document.getElementById('categoryForm');
 const categoryName = document.getElementById('categoryName');
 const cancelCategoryBtn = document.getElementById('cancelCategoryBtn');
 const closeCategoryModal = document.getElementById('closeCategoryModal');
+const successModal = document.getElementById('successModal');
+const successMessage = document.getElementById('successMessage');
+const successOkBtn = document.getElementById('successOkBtn');
+const closeSuccessModal = document.getElementById('closeSuccessModal');
+const deleteModal = document.getElementById('deleteModal');
+const deleteMessage = document.getElementById('deleteMessage');
+const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+const closeDeleteModal = document.getElementById('closeDeleteModal');
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
-    loadAnswers();
+    loadAnswers(); // This will also initialize categories from answers
+    loadCategories(); // This loads stored categories and merges with answer categories
     updateCategorySelect();
     renderCategorySidebar();
     renderAnswers();
@@ -59,18 +71,51 @@ function setupEventListeners() {
     categoryForm.addEventListener('submit', handleCategoryFormSubmit);
     cancelCategoryBtn.addEventListener('click', closeCategoryModalFunc);
     closeCategoryModal.addEventListener('click', closeCategoryModalFunc);
+    successOkBtn.addEventListener('click', closeSuccessModalFunc);
+    closeSuccessModal.addEventListener('click', closeSuccessModalFunc);
+    confirmDeleteBtn.addEventListener('click', confirmDelete);
+    cancelDeleteBtn.addEventListener('click', closeDeleteModalFunc);
+    closeDeleteModal.addEventListener('click', closeDeleteModalFunc);
 }
 
 
-// Get all unique categories (excluding favorites as it's special)
-function getCategories() {
-    const categories = new Set();
+// Load categories from localStorage
+function loadCategories() {
+    const stored = localStorage.getItem('customerSupportCategories');
+    const categorySet = new Set();
+    
+    // Add categories from stored list
+    if (stored) {
+        const storedCategories = JSON.parse(stored);
+        storedCategories.forEach(cat => categorySet.add(cat));
+    }
+    
+    // Also add categories from existing answers
     answers.forEach(answer => {
         if (answer.category && answer.category !== 'Favoriten') {
-            categories.add(answer.category);
+            categorySet.add(answer.category);
         }
     });
-    return Array.from(categories).sort();
+    
+    categories = Array.from(categorySet).sort();
+    saveCategories();
+}
+
+// Save categories to localStorage
+function saveCategories() {
+    localStorage.setItem('customerSupportCategories', JSON.stringify(categories));
+}
+
+// Get all categories (from stored list and from answers)
+function getCategories() {
+    const categorySet = new Set(categories);
+    // Also include categories from answers
+    answers.forEach(answer => {
+        if (answer.category && answer.category !== 'Favoriten') {
+            categorySet.add(answer.category);
+        }
+    });
+    return Array.from(categorySet).sort();
 }
 
 // Render category sidebar
@@ -140,6 +185,15 @@ function loadAnswers() {
             }
             return answer;
         });
+        
+        // Add categories from answers to the categories list if not already there
+        answers.forEach(answer => {
+            if (answer.category && answer.category !== 'Favoriten' && !categories.includes(answer.category)) {
+                categories.push(answer.category);
+            }
+        });
+        categories.sort();
+        saveCategories();
     } else {
         // Example data
         answers = [
@@ -158,6 +212,9 @@ function loadAnswers() {
                 favorite: false
             }
         ];
+        // Initialize categories from example data
+        categories = ['General', 'Billing'];
+        saveCategories();
         saveAnswers();
     }
 }
@@ -338,7 +395,7 @@ function handleFileUpload(event) {
                 renderCategorySidebar();
                 renderAnswers();
                 handleSort();
-                alert('Answers uploaded successfully!');
+                showSuccessModal('Answers uploaded successfully!', true);
             } else {
                 alert('Invalid file format. Expected an array of answers.');
             }
@@ -394,20 +451,35 @@ function deleteAnswer(id, event) {
     event.stopPropagation();
     const answer = answers.find(a => a.id === id);
     if (answer) {
-        if (confirm(`Are you sure you want to delete "${answer.title}"?`)) {
-            answers = answers.filter(a => a.id !== id);
-            saveAnswers();
-            renderCategorySidebar();
-            renderAnswers();
-            
-            // Maintain search filter if active
-            if (searchInput.value.trim()) {
-                handleSearch();
-            } else {
-                handleSort();
-            }
-        }
+        pendingDeleteId = id;
+        deleteMessage.textContent = `Are you sure you want to delete "${answer.title}"?`;
+        deleteModal.classList.add('show');
     }
+}
+
+// Confirm delete
+function confirmDelete() {
+    if (pendingDeleteId !== null) {
+        answers = answers.filter(a => a.id !== pendingDeleteId);
+        saveAnswers();
+        renderCategorySidebar();
+        renderAnswers();
+        
+        // Maintain search filter if active
+        if (searchInput.value.trim()) {
+            handleSearch();
+        } else {
+            handleSort();
+        }
+        
+        closeDeleteModalFunc();
+    }
+}
+
+// Close delete modal
+function closeDeleteModalFunc() {
+    deleteModal.classList.remove('show');
+    pendingDeleteId = null;
 }
 
 // Search
@@ -528,6 +600,26 @@ function closeCategoryModalFunc() {
     categoryForm.reset();
 }
 
+// Show success modal
+function showSuccessModal(message, closeBackupModal = false) {
+    successMessage.textContent = message;
+    successModal.classList.add('show');
+    
+    // Store flag to close backup modal
+    successModal.dataset.closeBackup = closeBackupModal;
+}
+
+// Close success modal
+function closeSuccessModalFunc() {
+    successModal.classList.remove('show');
+    
+    // Close backup modal if flag is set
+    if (successModal.dataset.closeBackup === 'true') {
+        backupModal.classList.remove('show');
+        successModal.dataset.closeBackup = 'false';
+    }
+}
+
 // Handle category form submit
 function handleCategoryFormSubmit(e) {
     e.preventDefault();
@@ -540,15 +632,21 @@ function handleCategoryFormSubmit(e) {
     }
     
     // Check if category already exists
-    const categories = getCategories();
-    if (categories.includes(name)) {
+    const allCategories = getCategories();
+    if (allCategories.includes(name)) {
         alert('This category already exists.');
         return;
     }
     
-    // Category is created when first answer is added to it
-    // Just close the modal and show a message
-    alert(`Category "${name}" will be created when you add the first answer to it.`);
+    // Add category to the list
+    categories.push(name);
+    categories.sort();
+    saveCategories();
+    
+    // Update UI
+    updateCategorySelect();
+    renderCategorySidebar();
+    
     closeCategoryModalFunc();
 }
 

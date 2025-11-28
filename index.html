@@ -116,6 +116,39 @@
                 </form>
             </div>
         </div>
+
+        <!-- Success Modal -->
+        <div id="successModal" class="modal">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2 style="color: var(--success);">✓ Success</h2>
+                    <span class="close" id="closeSuccessModal">&times;</span>
+                </div>
+                <div style="padding: 20px;">
+                    <p id="successMessage" style="color: var(--text-primary); margin-bottom: 20px;"></p>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" id="successOkBtn" style="width: 100%;">OK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div id="deleteModal" class="modal">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2 style="color: var(--danger);">⚠ Delete Answer</h2>
+                    <span class="close" id="closeDeleteModal">&times;</span>
+                </div>
+                <div style="padding: 20px;">
+                    <p id="deleteMessage" style="color: var(--text-primary); margin-bottom: 20px;"></p>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-delete" id="confirmDeleteBtn" style="flex: 1;">Delete</button>
+                        <button type="button" class="btn btn-secondary" id="cancelDeleteBtn" style="flex: 1;">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>
